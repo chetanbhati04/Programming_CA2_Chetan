@@ -1,0 +1,188 @@
+{% extends 'base.html' %}
+
+{% block title %}Home - Data Capture System{% endblock %}
+
+{% block content %}
+
+<div class="row">
+    <div class="col-12">
+        <h1 class="mb-4">
+            <i class="bi bi-house-door text-primary"></i> Welcome, {{ user.username }}!
+        </h1>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <!-- File Upload Card -->
+    <div class="col-md-6 mb-4">
+        <div class="card shadow h-100">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0">
+                    <i class="bi bi-cloud-upload"></i> Upload Files
+                </h5>
+            </div>
+            <div class="card-body">
+                <p class="text-muted">Upload PDF, Excel, or Image files.</p>
+
+                <form method="POST"
+                      action="{% url 'upload_file' %}"
+                      enctype="multipart/form-data"
+                      id="uploadForm">
+                    {% csrf_token %}
+
+                    <div class="mb-3">
+                        <label for="file" class="form-label">Select File</label>
+                        <input type="file"
+                               class="form-control"
+                               id="file"
+                               name="file"
+                               accept=".pdf,.xlsx,.xls,.png,.jpg,.jpeg,.gif,.bmp"
+                               required>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="source_type" class="form-label">File Type</label>
+                        <select class="form-select" id="source_type" name="source_type">
+                            <option value="pdf">PDF</option>
+                            <option value="excel">Excel</option>
+                            <option value="image">Image</option>
+                        </select>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="bi bi-upload"></i> Upload &amp; Extract Data
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Recent Uploaded Files -->
+<div class="row">
+    <div class="col-12">
+        <div class="card shadow">
+            <div class="card-header bg-info text-white">
+                <h5 class="mb-0">
+                    <i class="bi bi-clock-history"></i> Recent Uploaded Files
+                </h5>
+            </div>
+
+            <div class="card-body">
+                {% if sources %}
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle">
+                            <thead>
+                                <tr>
+                                    <th>Type</th>
+                                    <th>Source</th>
+                                    <th>Uploaded</th>
+                                    <th></th>  {# actions column only #}
+                                </tr>
+                            </thead>
+
+                            <tbody>
+                                {% for source in sources %}
+                                <tr>
+                                    <td>
+                                        {% if source.source_type == 'pdf' %}
+                                            <span class="badge bg-danger">
+                                                <i class="bi bi-file-pdf"></i> PDF
+                                            </span>
+                                        {% elif source.source_type == 'excel' %}
+                                            <span class="badge bg-success">
+                                                <i class="bi bi-file-excel"></i> Excel
+                                            </span>
+                                        {% elif source.source_type == 'image' %}
+                                            <span class="badge bg-info">
+                                                <i class="bi bi-image"></i> Image
+                                            </span>
+                                        {% else %}
+                                            <span class="badge bg-secondary">
+                                                {{ source.source_type }}
+                                            </span>
+                                        {% endif %}
+                                    </td>
+
+                                    <td>
+                                        {% if source.file_name %}
+                                            <i class="bi bi-file-earmark"></i> {{ source.file_name }}
+                                        {% else %}
+                                            <span class="text-muted">N/A</span>
+                                        {% endif %}
+                                    </td>
+
+                                    <td>{{ source.created_at|date:"M d, Y H:i" }}</td>
+
+                                   <td>
+    <!-- View data button -->
+    <a href="{% url 'source_detail' source.id %}"
+       class="btn btn-sm btn-outline-primary me-1">
+        <i class="bi bi-eye"></i> View Data
+    </a>
+
+    <!-- Undo / delete upload button -->
+    <form method="post"
+          action="{% url 'delete_source' source.id %}"
+          class="d-inline">
+        {% csrf_token %}
+        <button type="submit"
+                class="btn btn-sm btn-outline-danger"
+                onclick="return confirm('Are you sure you want to delete this upload? This will remove the file and its extracted data.');">
+            <i class="bi bi-arrow-counterclockwise"></i> delete
+        </button>
+    </form>
+</td>
+
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <p class="text-muted text-center py-4">
+                        <i class="bi bi-inbox"></i>
+                        No uploaded files yet. Upload a file to get started!
+                    </p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    const form = document.getElementById("uploadForm");
+    const fileInput = document.getElementById("file");
+    const typeSelect = document.getElementById("source_type");
+
+    form.addEventListener("submit", function (event) {
+        const filePath = fileInput.value;
+
+        if (!filePath) {
+            return;  // required attribute + backend will handle
+        }
+
+        const selectedType = typeSelect.value;
+        const extension = filePath.split('.').pop().toLowerCase();
+
+        const validExtensions = {
+            pdf: ["pdf"],
+            excel: ["xlsx", "xls"],
+            image: ["png", "jpg", "jpeg", "gif", "bmp"]
+        };
+
+        if (!(selectedType in validExtensions) ||
+            !validExtensions[selectedType].includes(extension)) {
+
+            event.preventDefault();
+            alert("File format incorrect. Please upload a valid " + selectedType.toUpperCase() + " file.");
+        }
+    });
+});
+</script>
+{% endblock %}

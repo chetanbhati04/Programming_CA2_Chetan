@@ -1,0 +1,188 @@
+{% extends "base.html" %}
+
+{% block title %}Source Details{% endblock %}
+
+{% block content %}
+<div class="py-4">
+  <a href="{% url 'home' %}" class="btn btn-link mb-3">
+    <i class="bi bi-arrow-left"></i> Back to dashboard
+  </a>
+
+  <!-- Source info card -->
+  <div class="card shadow-sm mb-4">
+    <div class="card-body">
+      <h2 class="h4 mb-2">
+        <i class="bi bi-file-earmark-text text-primary"></i>
+        Source Details
+      </h2>
+
+      <p class="text-muted mb-2">
+        {% if source.source_type == 'pdf' %}
+          <span class="badge bg-danger"><i class="bi bi-file-pdf"></i> PDF</span>
+        {% elif source.source_type == 'excel' %}
+          <span class="badge bg-success"><i class="bi bi-file-excel"></i> Excel</span>
+        {% elif source.source_type == 'image' %}
+          <span class="badge bg-info"><i class="bi bi-image"></i> Image</span>
+        {% else %}
+          <span class="badge bg-secondary">{{ source.source_type }}</span>
+        {% endif %}
+      </p>
+
+      <p class="mb-1">
+        <strong>File:</strong>
+        {% if source.file_name %}
+          {{ source.file_name }}
+        {% else %}
+          <span class="text-muted">N/A</span>
+        {% endif %}
+      </p>
+
+      <p class="mb-0">
+        <strong>Uploaded:</strong> {{ source.created_at|date:"Y-m-d H:i" }}
+      </p>
+    </div>
+  </div>
+
+  <h3 class="h5 mb-3">
+    <i class="bi bi-database"></i> Extracted Data
+  </h3>
+
+  {% if not extracted_obj %}
+    <p class="text-muted">
+      <i class="bi bi-info-circle"></i>
+      No extracted data found for this file.
+    </p>
+  {% else %}
+
+    {# ---------- PDF VIEW ---------- #}
+    {% if extracted_type == 'pdf' and pdf_pages %}
+      <div class="accordion" id="pdfAccordion">
+        {% for page in pdf_pages %}
+          <div class="accordion-item">
+            <h2 class="accordion-header" id="heading{{ forloop.counter }}">
+              <button class="accordion-button {% if not forloop.first %}collapsed{% endif %}" type="button"
+                      data-bs-toggle="collapse"
+                      data-bs-target="#collapse{{ forloop.counter }}"
+                      aria-expanded="{% if forloop.first %}true{% else %}false{% endif %}"
+                      aria-controls="collapse{{ forloop.counter }}">
+                Page {{ page.page }}
+              </button>
+            </h2>
+            <div id="collapse{{ forloop.counter }}"
+                 class="accordion-collapse collapse {% if forloop.first %}show{% endif %}"
+                 aria-labelledby="heading{{ forloop.counter }}"
+                 data-bs-parent="#pdfAccordion">
+              <div class="accordion-body">
+                <pre class="mb-0" style="white-space: pre-wrap; word-break: break-word;">{{ page.text }}</pre>
+              </div>
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+
+    {# ---------- EXCEL VIEW ---------- #}
+    {% elif extracted_type == 'excel' and excel_sheets %}
+      {% for sheet in excel_sheets %}
+        <div class="card mb-4">
+          <div class="card-header bg-light d-flex justify-content-between align-items-center">
+            <span>
+              <i class="bi bi-table"></i>
+              Sheet: <strong>{{ sheet.name }}</strong>
+            </span>
+            <span class="badge bg-secondary">
+              {{ sheet.row_count }} rows
+            </span>
+          </div>
+          <div class="card-body">
+            {% if sheet.columns and sheet.rows %}
+              <div class="table-responsive">
+                <table class="table table-sm table-striped table-bordered">
+                  <thead class="table-light">
+                    <tr>
+                      {% for col in sheet.columns %}
+                        <th>{{ col }}</th>
+                      {% endfor %}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {% for row in sheet.rows|slice:":10" %}
+                      <tr>
+                        {% for cell in row %}
+                          <td>{{ cell }}</td>
+                        {% endfor %}
+                      </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+                {% if sheet.row_count > 10 %}
+                  <p class="text-muted small mb-0">
+                    Showing first 10 rows out of {{ sheet.row_count }}.
+                  </p>
+                {% endif %}
+              </div>
+            {% else %}
+              <p class="text-muted mb-0">No data found in this sheet.</p>
+            {% endif %}
+          </div>
+        </div>
+      {% endfor %}
+
+    {# ---------- IMAGE VIEW ---------- #}
+    {% elif extracted_type == 'image' and image_data %}
+      <div class="card">
+        <div class="card-body">
+          <h5 class="card-title">
+            <i class="bi bi-image"></i> Image Metadata
+          </h5>
+
+          <ul class="list-group mb-3">
+            <li class="list-group-item d-flex justify-content-between">
+              <span><strong>Format</strong></span>
+              <span>{{ image_data.format|default:"N/A" }}</span>
+            </li>
+            <li class="list-group-item d-flex justify-content-between">
+              <span><strong>Size</strong></span>
+              <span>
+                {% if image_data.size %}
+                  {{ image_data.size.0 }} × {{ image_data.size.1 }} px
+                {% else %}
+                  N/A
+                {% endif %}
+              </span>
+            </li>
+            <li class="list-group-item d-flex justify-content-between">
+              <span><strong>Mode</strong></span>
+              <span>{{ image_data.mode|default:"N/A" }}</span>
+            </li>
+            {% if image_data.note %}
+            <li class="list-group-item">
+              <strong>Note:</strong> {{ image_data.note }}
+            </li>
+            {% endif %}
+          </ul>
+
+          <h6>Extracted Text</h6>
+          {% if image_data.text %}
+            <pre class="mb-0" style="white-space: pre-wrap; word-break: break-word;">{{ image_data.text }}</pre>
+          {% else %}
+            <p class="text-muted mb-0">
+              No text was extracted from this image.
+            </p>
+          {% endif %}
+        </div>
+      </div>
+
+    {# ---------- FALLBACK RAW JSON VIEW ---------- #}
+    {% else %}
+      <div class="card">
+        <div class="card-body">
+          <h5 class="card-title">
+            <i class="bi bi-code-slash"></i> Raw Extracted Data
+          </h5>
+          <pre class="mb-0" style="white-space: pre-wrap; word-break: break-word;">{{ raw_data }}</pre>
+        </div>
+      </div>
+    {% endif %}
+  {% endif %}
+</div>
+{% endblock %}
