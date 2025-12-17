@@ -60,15 +60,30 @@ The application reduces manual work, improves accuracy, and enhances security fo
 
 CJ Project/
 │
-├── scrap_project/ # Django project settings
-├── data_capture/ # Core application logic
-│ ├── models.py # DataSource, ExtractedData, AuditLog
-│ ├── views.py # Web & API views
-│ ├── security.py # Malware scan, sanitization, logging
-│ ├── utils.py # Data extraction logic
+├── scrap_project/              # Django project settings
+│   ├── settings.py
+│   ├── urls.py
+│   └── wsgi.py
 │
-├── templates/ # HTML templates
-├── media/uploads/ # Uploaded files
-├── venv/ # Virtual environment
-├── manage.py
-└── README.md
+├── data_capture/               # Core application logic
+│   ├── models.py               # DataSource, ExtractedData, AuditLog
+│   ├── views.py                # Web views & API endpoints
+│   ├── security.py             # Malware scan, sanitization, audit logging
+│   ├── utils.py                # Data extraction logic (PDF, Excel, Image)
+│   ├── forms.py
+│   └── migrations/
+│
+├── templates/                  # HTML templates (UI)
+│   ├── authentication/
+│   ├── data_capture/
+│   └── base.html
+│
+├── media/
+│   └── uploads/                # Uploaded & sanitized files
+│
+├── venv/                       # Python virtual environment
+│
+├── manage.py                   # Django management script
+├── requirements.txt            # Project dependencies
+└── README.md                   # Project documentation
+
