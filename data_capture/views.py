@@ -8,7 +8,7 @@ from .forms import ContactForm
 
 from .models import DataSource, ExtractedData
 from .utils import (extract_pdf_data,extract_excel_data,extract_image_data,)
-from .security import scan_file_for_malware, sanitize_file, log_audit_event
+from .security import scan_file_for_malware, sanitize_file, log_audit_event, sanitize_extracted_data
 import os
 import json
 import hashlib
@@ -158,7 +158,7 @@ def upload_file(request):
             sha256.update(chunk)
     file_hash = sha256.hexdigest()
 
-    # --------- Extract data ----------
+        # --------- Extract data ----------
     extracted_data = None
 
     if source_type == 'pdf':
@@ -168,6 +168,16 @@ def upload_file(request):
     elif source_type == 'image':
         extracted_data = extract_image_data(file_path_str)
 
+    # ✅ sanitize AFTER extraction
+    if extracted_data:
+        extracted_data = sanitize_extracted_data(extracted_data)
+
+
+
+  
+
+
+    
     # --------- Create DataSource record ----------
     data_source = DataSource.objects.create(
         user=request.user,
@@ -299,7 +309,6 @@ def source_detail(request, pk):
 @login_required
 @csrf_exempt
 def api_upload_file(request):
-    """API endpoint for file upload – JSON response."""
     if request.method != 'POST':
         return JsonResponse({'error': 'Method not allowed'}, status=405)
 
@@ -309,12 +318,8 @@ def api_upload_file(request):
     if not uploaded_file:
         return JsonResponse({'error': 'No file provided'}, status=400)
 
-    # Determine file extension
     filename = uploaded_file.name
-    if '.' in filename:
-        file_extension = filename.rsplit('.', 1)[-1].lower()
-    else:
-        file_extension = ''
+    file_extension = filename.rsplit('.', 1)[-1].lower() if '.' in filename else ''
 
     valid_extensions = {
         'pdf': ['pdf'],
@@ -330,13 +335,22 @@ def api_upload_file(request):
 
     media_dir = settings.MEDIA_ROOT / 'uploads'
     media_dir.mkdir(parents=True, exist_ok=True)
-    file_path = media_dir / uploaded_file.name
+
+    file_path = media_dir / filename
     with open(file_path, 'wb+') as dest:
         for chunk in uploaded_file.chunks():
             dest.write(chunk)
 
-    extracted_data = None
 
+    sanitized_ok, sanitized_path, sanitize_msg = sanitize_file(str(file_path), source_type)
+    if sanitized_ok:
+        log_audit_event(request, 'sanitization_success', f"{filename}: {sanitize_msg}")
+    else:
+        log_audit_event(request, 'sanitization_failed', f"{filename}: {sanitize_msg}")
+
+    file_path = sanitized_path
+    # --------- Extract data ----------
+    extracted_data = None
     if source_type == 'pdf':
         extracted_data = extract_pdf_data(str(file_path))
     elif source_type == 'excel':
@@ -344,18 +358,22 @@ def api_upload_file(request):
     elif source_type == 'image':
         extracted_data = extract_image_data(str(file_path))
 
-    data_source = DataSource.objects.create(
-        user=request.user,
-        source_type=source_type,
-        file_name=uploaded_file.name,
-    )
-
+    # ✅ sanitize AFTER extraction
     if extracted_data:
+        extracted_data = sanitize_extracted_data(extracted_data)
+
+        data_source = DataSource.objects.create(
+            user=request.user,
+            source_type=source_type,
+            file_name=filename,
+        )
+
         ExtractedData.objects.create(
             source=data_source,
             user=request.user,
             data=json.dumps(extracted_data, default=str),
         )
+
         return JsonResponse({
             'message': 'File uploaded and processed successfully',
             'source_id': data_source.id,
@@ -363,3 +381,4 @@ def api_upload_file(request):
         })
 
     return JsonResponse({'error': 'Failed to extract data'}, status=500)
+

@@ -1,5 +1,7 @@
 import subprocess
 import json
+import re
+import html
 from pathlib import Path
 
 from django.conf import settings
@@ -39,17 +41,43 @@ def scan_file_for_malware(file_path: str):
     else:
         return None, result.stderr or "Unknown error from malware scanner."
 
+#Excel sanitizing
+SCRIPT_RE = re.compile(r"<\s*script.*?>.*?<\s*/\s*script\s*>", re.IGNORECASE | re.DOTALL)
+TAG_RE = re.compile(r"<[^>]+>")
 
+def sanitize_text(value: str) -> str:
+    """Basic output sanitization for extracted strings (Excel, OCR text, etc.)."""
+    if value is None:
+        return value
+    if not isinstance(value, str):
+        return value
+
+    # Remove <script>...</script>
+    value = SCRIPT_RE.sub("", value)
+
+    # Remove any remaining HTML tags
+    value = TAG_RE.sub("", value)
+
+    # Escape special HTML characters to avoid XSS in templates
+    value = html.escape(value)
+
+    # Optional: remove obvious SQL injection patterns (demo-level)
+    value = value.replace("DROP TABLE", "[REMOVED]").replace("drop table", "[REMOVED]")
+
+    return value
+
+def sanitize_extracted_data(obj):
+    """Recursively sanitize extracted JSON-like data (dict/list/str)."""
+    if isinstance(obj, dict):
+        return {k: sanitize_extracted_data(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [sanitize_extracted_data(x) for x in obj]
+    if isinstance(obj, str):
+        return sanitize_text(obj)
+    return obj
 # File sanitization
 
 def sanitize_file(file_path: str, source_type: str):
-    """
-    Sanitize uploaded files BEFORE processing:
-    - pdf: rebuild PDF with PyPDF2 (removes scripts, metadata, etc.)
-    - image: reopen & resave via Pillow (drops metadata)
-    Other types: returned unchanged.
-    Returns: (success, sanitized_path, message)
-    """
     p = Path(file_path)
 
     # Only sanitize pdf + image uploads
